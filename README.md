@@ -4,9 +4,14 @@ Markdown を PDF に変換するコマンドラインツールです。`npm inst
 
 対応しているもの:
 
-- 見出し、表、引用、リスト、コード（シンタックスハイライト）
-- [Mermaid](https://mermaid.js.org/) の図（フローチャート、シーケンス図など）
-- 日本語（Noto Sans JP を同梱）
+- 見出し、表（列の寄せ）、引用、リスト、タスクリスト、コード（シンタックスハイライト）
+- 太字、斜体、取り消し線、下付き・上付き、マーカー、文章の中の画像
+- クリックできるリンク（文書内の `#見出し` へのリンクはその見出しへ移動）
+- GitHub の書き方: 脚注、アラート（`> [!NOTE]` など）、絵文字のショートコード（`:smile:`）
+- 数式（`$E=mc^2$`、`$$ … $$`、KaTeX で描画）、定義リスト、`==マーカー==`、`19^th^`、`H~2~O`
+- [Mermaid](https://mermaid.js.org/) の図（フローチャート、シーケンス図など）。書き間違えた図はエラーを赤字で出し、変換は止めません
+- 日本語（Noto Sans JP を同梱）と絵文字（Noto Emoji の白黒の字形）。フォントにない文字は、四角にせず近い文字に置き換えます
+- Markdown の中の HTML（`<p align="center">`、`<img width>`、`<table>`、`<details>` など）
 - 見出しのレベルごとに選べる改ページ（`#` は必ず改ページ、`##` 以降ははみ出るときだけ、など）
 - 図・コード・引用・表の行がページの途中で切れない組版。1ページに収まらない図は、縮小して1ページに収めます
 
@@ -16,7 +21,7 @@ Markdown を PDF に変換するコマンドラインツールです。`npm inst
 npm install -g @object-works/md-to-pdf
 ```
 
-Mermaid の図は、Puppeteer が起動するヘッドレス Chrome 上の Mermaid.js で描き、画像として PDF に埋め込みます。ブラウザは `npm install` のときに Puppeteer が入れます。入っていない場合は `npx puppeteer browsers install chrome-headless-shell` で入れてください。図がない文書と `--no-mermaid` のときは、ブラウザを起動しません。
+Mermaid の図と数式は、Puppeteer が起動するヘッドレス Chrome 上の Mermaid.js と KaTeX で描き、画像として PDF に埋め込みます。ブラウザは `npm install` のときに Puppeteer が入れます。入っていない場合は `npx puppeteer browsers install chrome-headless-shell` で入れてください。図も数式もない文書と `--no-mermaid` のときは、ブラウザを起動しません（`--no-mermaid` のとき、数式は `$…$` の文字のまま出します）。
 
 ## 使い方
 
@@ -41,7 +46,7 @@ md-to-pdf --help
 | `--landscape` | 横向き |
 | `--margin` | 余白。`16mm`、`18mm 16mm`、`16mm 16mm 18mm 16mm`（上 右 下 左） |
 | `--page-break` | 必ず改ページする見出しのレベル。`"#"`（既定）、`"# ##"`、`"# ## ###"`、`none` など。詳しくは[改ページ](#改ページ) |
-| `--no-mermaid` | Mermaid を描かず、コードのまま出す |
+| `--no-mermaid` | Mermaid と数式を描かず、コード・文字のまま出す |
 | `--no-page-numbers` | ページ番号を付けない |
 
 用紙いっぱいに広がる図は、ページ幅と高さに収まるよう縮小します。縮小率が 70% を下回ると、その旨を表示します。その場合は `--format A3` か `--landscape` を試してください。
@@ -97,6 +102,67 @@ flowchart LR
 
 図の中の `<br>` や `<b>` も、その Markdown を自分のマシンで PDF にする前提で描画します。
 
+書き間違えた図は、エラーの内容を赤字で出したうえでコードのまま残し、ほかの部分の変換を続けます。同じ内容はコマンドラインにも表示します。
+
+### Markdown の書き方
+
+| 書き方 | PDF での扱い |
+| --- | --- |
+| `*斜体*` `~~取り消し~~` `==マーカー==` `19^th^` `H~2~O` | 斜体・取り消し線・黄色のマーカー・上付き・下付き |
+| `- [x] 完了` `- [ ] 未完了` | ☑ / ☐ |
+| `\| :--- \| :---: \| ---: \|` | 表の列の左寄せ・中央寄せ・右寄せ |
+| `[リンク](https://…)` `[見出しへ](#見出し)` | クリックできるリンク。`#` で始まるものは文書内の見出しへ移動 |
+| `文章 ![画像](a.png) 文章` | 文章の中に画像を置く。画像だけの段落は1行を使って置く |
+| `[^1]` と `[^1]: 本文` | 上付きの番号。本文は文書の最後にまとめ、番号と ↩ で行き来できる |
+| `> [!NOTE]` `[!TIP]` `[!IMPORTANT]` `[!WARNING]` `[!CAUTION]` | 色付きの見出しと縦線の付いたアラート |
+| `:smile:` `:rocket:` | 絵文字（白黒の字形） |
+| `$E=mc^2$`、`$$` で囲んだ行 | 数式（KaTeX）。`$$` の数式は中央にそろえる |
+| `用語` の次の行に `: 説明` | 定義リスト（用語は太字、説明は字下げ） |
+
+改行だけでつないだ行は、日本語どうしなら詰めて、英語ならスペースを入れてつなぎます。
+
+### HTML
+
+Markdown の中に書いた HTML も PDF にします。GitHub の README でよく使う書き方に対応しています。
+
+```markdown
+<p align="center">
+  <img src="images/logo.png" alt="ロゴ" width="480">
+</p>
+<p align="center">説明文。<b>太字</b>や<a href="https://example.com">リンク</a><br>改行も使えます</p>
+
+<div align="center">
+
+**中の Markdown も中央寄せになります**
+
+</div>
+```
+
+| HTML | PDF での扱い |
+| --- | --- |
+| `align="center"` `align="right"`、`style="text-align: center"`、`<center>` | 中央寄せ・右寄せ |
+| `<img src alt width height>` | 画像。`width` と `height`（px か %）で大きさを指定できます。文章や表のセルの中にも置けます |
+| `<b>` `<strong>` `<i>` `<em>` `<code>` `<kbd>` `<a>` `<br>` | 太字・斜体・コード・リンク・改行 |
+| `<s>` `<del>` `<u>` `<ins>` `<sub>` `<sup>` `<small>` `<mark>` | 取り消し線・下線・下付き・上付き・小さい文字・マーカー |
+| `<h1>`〜`<h6>` | 見出し（`--page-break` の対象にもなります） |
+| `<p>` `<div>` `<ul>` `<ol>` `<li>` `<table>` `<blockquote>` `<pre>` `<hr>` | 段落・リスト・表・引用・コード・区切り線 |
+| `<details>` `<summary>` | 中身を開いた状態で出します |
+| `<input type="checkbox">` | ☑ / ☐ |
+| `<!-- コメント -->` `<script>` `<style>` `<svg>` など | 出しません |
+
+読み込めない画像（ファイルがない、`http(s)://` の画像、SVG など）は、`［画像: alt の文字］` と表示します。
+
+### 描けない文字
+
+フォントにない文字は、次の順で置き換えます。四角（□）の文字化けは出ません。
+
+1. ゼロ幅スペースや絵文字の異体字セレクタなど、目に見えない文字は消します
+2. `𝐀` → `A` のような互換文字は、ふつうの文字にします
+3. 絵文字は Noto Emoji の白黒の字形で描きます。国旗は `🇯🇵` → `[JP]`、`👨‍👩‍👧` のような組み合わせ絵文字は最初の1文字にします
+4. それでも描けない文字は `〓` にします（ハングル、タイ文字など）
+
+コードブロックの罫線（`├── │ └──`）は等幅フォントで描くので、縦にそろいます。JIS 第3・第4水準の漢字（`𠮷` `髙` `﨑` など）は、文書で使われている分だけ Noto Sans JP の追加グリフを読み込んで描きます。
+
 ## ライブラリ
 
 ```javascript
@@ -120,4 +186,4 @@ await mdToPdf(
 - `--page-break` で選んだ見出し（既定は `#`）は、必ず新しいページから始めます
 - 見出しの直後の図は、見出しと同じページに収まる大きさに縮小します
 
-日本語の字形は [Noto Sans JP](https://fonts.google.com/noto/specimen/Noto+Sans+JP)（SIL Open Font License）です。矢印・図形・丸数字など、このフォントに含まれない記号は同梱の記号フォント（DejaVu の一部。ライセンスは `src/fonts/DEJAVU-LICENSE.txt`）で描きます。
+日本語の字形は [Noto Sans JP](https://fonts.google.com/noto/specimen/Noto+Sans+JP)（SIL Open Font License）です。矢印・図形・丸数字・罫線・欧文の記号など、このフォントに含まれない文字は同梱の記号フォント（DejaVu Sans の一部）で、コードは同梱の等幅フォント（DejaVu Sans Mono の一部）で描きます。DejaVu のライセンスは `src/fonts/DEJAVU-LICENSE.txt` にあります。絵文字は [Noto Emoji](https://fonts.google.com/noto/specimen/Noto+Emoji)（SIL Open Font License）のうち、文書で使われている分だけを読み込みます。斜体は字形を傾けて描きます。

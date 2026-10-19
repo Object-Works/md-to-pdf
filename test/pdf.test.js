@@ -40,6 +40,51 @@ function pageContaining(pages, text) {
   return pages.findIndex((lines) => lines.some((line) => line.includes(text)));
 }
 
+async function annotations(buffer) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const document = await pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise;
+  const found = [];
+  for (let number = 1; number <= document.numPages; number += 1) {
+    found.push(...await (await document.getPage(number)).getAnnotations());
+  }
+  return { found, destinations: await document.getDestinations() };
+}
+
+test('脚注・リンク・タスクリストを描き、書き間違えた図で止まらない', { timeout: 120000 }, async () => {
+  const markdown = `# 拡張の確認
+
+本文[^1]と[外部](https://example.com)と[見出しへ](#拡張の確認)。
+
+- [x] 済み
+- [ ] まだ
+
+| 左 | 右 |
+| :-- | --: |
+| a | 1 |
+
+\`\`\`mermaid
+flowchart LR
+  A -->
+\`\`\`
+
+[^1]: 脚注の本文。
+`;
+  const result = await mdToPdf({ content: markdown }, {});
+  const pages = await pageLines(result.content);
+  const text = pages.flat().join('\n');
+  assert.ok(text.includes('脚注の本文。'), '脚注の本文がありません');
+  assert.ok(text.includes('☑') && text.includes('☐'), 'タスクリストの印がありません');
+  assert.ok(!text.includes('[x]'), 'タスクリストの [x] が文字のまま残っています');
+  assert.ok(text.includes('描画できませんでした'), '図のエラーが PDF にありません');
+
+  const { found, destinations } = await annotations(result.content);
+  assert.ok(found.some((item) => item.url === 'https://example.com/' || item.url === 'https://example.com'));
+  for (const name of ['拡張の確認', 'fn-1', 'fnref-1']) {
+    assert.ok(name in destinations, `${name} への移動先がありません`);
+    assert.ok(found.some((item) => item.dest === name), `${name} へのリンクがありません`);
+  }
+});
+
 test('小題と図をページの途中で切らない', { timeout: 120000 }, async () => {
   const { contentBoxPx } = await import('../src/options.js');
   const box = contentBoxPx({ format: 'A4', margin: '16mm 16mm 18mm 16mm' });

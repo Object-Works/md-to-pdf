@@ -1,3 +1,4 @@
+import { fontNameFor } from './fonts.js';
 import { lengthToPx } from './options.js';
 import { pxToPt, stringWidth } from './text.js';
 
@@ -130,22 +131,73 @@ function paginate(atoms, pageHeight) {
   return pages.length ? pages : [[]];
 }
 
-function drawRuns(doc, lines, xPx, yPx, origin) {
+const ITALIC_SKEW = 0.2;
+
+function addDestination(doc, name, xPt, yPt) {
+  if (name) doc.addNamedDestination(name, 'XYZ', xPt, yPt, null);
+}
+
+function linkArea(doc, href, xPt, yPt, widthPt, heightPt) {
+  if (!href) return;
+  if (href.startsWith('#')) {
+    let name = href.slice(1);
+    try {
+      name = decodeURIComponent(name);
+    } catch {
+      // そのままの名前で探す
+    }
+    doc.goTo(xPt, yPt, widthPt, heightPt, name);
+  } else {
+    doc.link(xPt, yPt, widthPt, heightPt, href);
+  }
+}
+
+function drawTextRun(doc, run, xPt, baseline) {
+  const size = run.fontSizePt;
+  const y = baseline + (run.rise || 0);
+  const widthPt = pxToPt(run.width);
+  const background = run.code ? '#f3f4f6' : run.highlight;
+  if (background) {
+    doc.save();
+    doc.rect(xPt, y - size * 0.95, widthPt, size * 1.25).fill(background);
+    doc.restore();
+  }
+  doc.save();
+  if (run.italic) doc.transform(1, 0, -ITALIC_SKEW, 1, ITALIC_SKEW * y, 0);
+  doc.font(run.font).fontSize(size).fillColor(run.color || '#1c1c1c');
+  doc.text(run.text, xPt, y, { lineBreak: false, baseline: 'alphabetic' });
+  doc.restore();
+  const rule = (offset) => {
+    doc.save();
+    doc.moveTo(xPt, y + offset).lineTo(xPt + widthPt, y + offset)
+      .lineWidth(Math.max(0.5, size * 0.065))
+      .strokeColor(run.color || '#1c1c1c')
+      .stroke();
+    doc.restore();
+  };
+  if (run.strike) rule(-size * 0.3);
+  if (run.underline) rule(size * 0.13);
+  addDestination(doc, run.anchor, xPt, y - size);
+  linkArea(doc, run.href, xPt, y - size * 0.95, widthPt, size * 1.25);
+}
+
+function drawRuns(doc, lines, xPx, yPx, origin, align, widthPx) {
   let y = yPx;
   for (const line of lines) {
     let x = xPx;
+    const free = Math.max(0, (widthPx || 0) - line.width);
+    if (align === 'center') x += free / 2;
+    else if (align === 'right') x += free;
+    const baseline = origin.y + pxToPt(y + line.baseline);
     for (const run of line.runs) {
-      if (!run.text) continue;
       const xPt = origin.x + pxToPt(x);
-      const yPt = origin.y + pxToPt(y);
-      if (run.code) {
-        const fontPx = run.fontSizePt * (96 / 72);
-        doc.save();
-        doc.rect(xPt, yPt + pxToPt(1), pxToPt(run.width), pxToPt(fontPx)).fill('#f3f4f6');
-        doc.restore();
+      if (run.image) {
+        const top = baseline - pxToPt(run.ascent);
+        doc.image(run.image, xPt, top, { width: pxToPt(run.width), height: pxToPt(run.height) });
+        linkArea(doc, run.href, xPt, top, pxToPt(run.width), pxToPt(run.height));
+      } else if (run.text) {
+        drawTextRun(doc, run, xPt, baseline);
       }
-      doc.font(run.font).fontSize(run.fontSizePt).fillColor(run.color || '#1c1c1c');
-      doc.text(run.text, xPt, yPt, { lineBreak: false, baseline: 'top' });
       x += run.width;
     }
     y += line.height;
@@ -170,14 +222,16 @@ function drawBlock(doc, block, x, y, origin, columnWidth) {
   if (block.type === 'text') {
     const indent = block.indent || 0;
     const textX = x + indent + (block.markerWidth || 0);
+    addDestination(doc, block.anchor, origin.x + pxToPt(x), origin.y + pxToPt(y));
     if (block.marker) {
-      doc.font('Noto').fontSize(block.style?.fontPt || 10.5).fillColor('#1c1c1c');
-      doc.text(block.marker, origin.x + pxToPt(x + indent), origin.y + pxToPt(top), {
+      const baseline = origin.y + pxToPt(top + (block.lines[0]?.baseline || 0));
+      doc.font(fontNameFor([...block.marker][0], false)).fontSize(block.style?.fontPt || 10.5).fillColor(block.markerColor || '#1c1c1c');
+      doc.text(block.marker, origin.x + pxToPt(x + indent), baseline, {
         lineBreak: false,
-        baseline: 'top',
+        baseline: 'alphabetic',
       });
     }
-    drawRuns(doc, block.lines, textX, top, origin);
+    drawRuns(doc, block.lines, textX, top, origin, block.align, x + columnWidth - textX);
     if (block.border) {
       const borderY = top + block.contentHeight - (block.level === 1 ? 2.5 : 1);
       doc.save();
@@ -206,8 +260,8 @@ function drawBlock(doc, block, x, y, origin, columnWidth) {
     const xPt = origin.x + pxToPt(x);
     const yPt = origin.y + pxToPt(top);
     doc.save();
-    doc.rect(xPt, yPt, pxToPt(columnWidth), pxToPt(block.contentHeight)).fill('#f6f7f8');
-    doc.rect(xPt, yPt, pxToPt(3), pxToPt(block.contentHeight)).fill('#9aa0a6');
+    doc.rect(xPt, yPt, pxToPt(columnWidth), pxToPt(block.contentHeight)).fill(block.accent ? '#ffffff' : '#f6f7f8');
+    doc.rect(xPt, yPt, pxToPt(3), pxToPt(block.contentHeight)).fill(block.accent || '#9aa0a6');
     doc.restore();
     let cursor = top;
     for (const child of block.children) {
@@ -217,9 +271,12 @@ function drawBlock(doc, block, x, y, origin, columnWidth) {
     return;
   }
   if (block.type === 'image') {
-    const xPt = origin.x + pxToPt(x);
+    const free = Math.max(0, columnWidth - block.drawWidth);
+    const offset = block.align === 'center' ? free / 2 : block.align === 'right' ? free : 0;
+    const xPt = origin.x + pxToPt(x + offset);
     const yPt = origin.y + pxToPt(top);
-    doc.image(block.image, xPt, yPt, { width: pxToPt(block.drawWidth) });
+    doc.image(block.image, xPt, yPt, { width: pxToPt(block.drawWidth), height: pxToPt(block.drawHeight) });
+    linkArea(doc, block.href, xPt, yPt, pxToPt(block.drawWidth), pxToPt(block.drawHeight));
     return;
   }
   if (block.type === 'diagram') {
@@ -241,7 +298,7 @@ function drawBlock(doc, block, x, y, origin, columnWidth) {
       const fill = row.header ? '#f3f4f6' : block.rowIndex % 2 === 0 ? '#fafafa' : '#ffffff';
       doc.lineWidth(0.6).rect(xPt, yPt, pxToPt(column), pxToPt(row.height)).fillAndStroke(fill, '#d0d0d0');
       doc.restore();
-      drawRuns(doc, cell.lines, cellX + block.padX, top + block.padY, origin);
+      drawRuns(doc, cell.lines, cellX + block.padX, top + block.padY, origin, cell.align, column - block.padX * 2);
       cellX += column;
     });
   }

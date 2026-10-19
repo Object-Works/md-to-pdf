@@ -15,6 +15,7 @@ let session;
 function pageHtml() {
   const noto = path.dirname(require.resolve('@fontsource/noto-sans-jp/package.json'));
   const mermaidJs = require.resolve('mermaid/dist/mermaid.min.js');
+  const katexDir = path.dirname(require.resolve('katex/dist/katex.min.js'));
   const href = (file) => pathToFileURL(file).href;
   return `<!DOCTYPE html>
 <html>
@@ -22,12 +23,16 @@ function pageHtml() {
 <meta charset="utf-8">
 <link rel="stylesheet" href="${href(path.join(noto, '400.css'))}">
 <link rel="stylesheet" href="${href(path.join(noto, '700.css'))}">
+<link rel="stylesheet" href="${href(path.join(katexDir, 'katex.min.css'))}">
+<script src="${href(path.join(katexDir, 'katex.min.js'))}"></script>
 <style>
 @font-face { font-family: 'MdSymbols'; font-weight: 400; src: url('${href(path.join(here, 'fonts', 'MdSymbols-Regular.ttf'))}'); }
 @font-face { font-family: 'MdSymbols'; font-weight: 700; src: url('${href(path.join(here, 'fonts', 'MdSymbols-Bold.ttf'))}'); }
 html, body { margin: 0; padding: 0; background: #fff; font-family: ${FONT_STACK}; }
 #stage { display: inline-block; padding: 0; }
 #stage svg { display: block; }
+#stage.math { padding: 1px 2px; font-size: 14px; color: #1c1c1c; }
+#stage.math .katex-display { margin: 0; }
 </style>
 <script src="${href(mermaidJs)}"></script>
 </head>
@@ -52,7 +57,7 @@ async function openSession() {
   } catch (error) {
     await rm(dir, { recursive: true, force: true });
     const message = error instanceof Error ? error.message.split('\n')[0] : String(error);
-    throw new Error(`Mermaid 図を描くためのブラウザを起動できませんでした: ${message}\n`
+    throw new Error(`Mermaid 図や数式を描くためのブラウザを起動できませんでした: ${message}\n`
       + 'npx puppeteer browsers install chrome-headless-shell でブラウザを入れるか、--no-mermaid を付けてください。');
   }
   const file = path.join(dir, 'mermaid.html');
@@ -124,6 +129,9 @@ export async function renderDiagram(source, fit) {
     ]);
     await document.fonts.ready;
     const stage = document.getElementById('stage');
+    stage.className = '';
+    document.documentElement.style.background = '';
+    document.body.style.background = '';
     stage.innerHTML = '';
     try {
       const { svg } = await window.mermaid.render(diagramId, text);
@@ -161,4 +169,32 @@ export async function renderDiagram(source, fit) {
   const element = await page.$('#stage svg');
   const png = Buffer.from(await element.screenshot({ type: 'png', omitBackground: false }));
   return { png, width: size.width, height: size.height };
+}
+
+export async function renderMath(tex, { display = false } = {}) {
+  const { page } = await currentSession();
+  const size = await page.evaluate(async (source, displayMode) => {
+    const stage = document.getElementById('stage');
+    stage.className = 'math';
+    document.documentElement.style.background = 'transparent';
+    document.body.style.background = 'transparent';
+    stage.innerHTML = window.katex.renderToString(source, { displayMode, throwOnError: false, output: 'html' });
+    const probe = document.createElement('span');
+    probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+    (stage.querySelector('.katex-html') || stage).append(probe);
+    await document.fonts.ready;
+    const box = stage.getBoundingClientRect();
+    const base = probe.getBoundingClientRect().top - box.top;
+    probe.remove();
+    return { width: Math.ceil(box.width), height: Math.ceil(box.height), ascent: base };
+  }, tex, display);
+  if (!size.width || !size.height) throw new Error('数式の大きさを決められませんでした');
+  await page.setViewport({
+    width: Math.max(1600, size.width + 16),
+    height: Math.max(1200, size.height + 16),
+    deviceScaleFactor: PIXEL_RATIO,
+  });
+  const element = await page.$('#stage');
+  const png = Buffer.from(await element.screenshot({ type: 'png', omitBackground: true }));
+  return { png, width: size.width, height: size.height, ascent: Math.min(size.height, Math.max(0, size.ascent)) };
 }

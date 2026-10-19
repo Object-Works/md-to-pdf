@@ -1,4 +1,4 @@
-import { fontNameFor } from './fonts.js';
+import { fontNameFor, monoCovers, normalizeText, notoAscent } from './fonts.js';
 
 export const PX_PER_PT = 96 / 72;
 
@@ -40,10 +40,36 @@ function canBreak(prev, next) {
 
 export function fontFor(ch, run, style) {
   const bold = Boolean(run.bold || style.bold);
-  const cp = ch.codePointAt(0);
-  const cjk = cp > 0x2e80;
-  if ((run.code || style.mono) && !cjk && cp < 0x80) return 'Mono';
+  if ((run.code || style.mono) && monoCovers(ch)) return 'Mono';
   return fontNameFor(ch, bold);
+}
+
+function runText(run) {
+  if (run.break) return '\n';
+  const text = normalizeText(run.text || '');
+  return run.code ? text.replace(/\t/g, '    ') : text.replace(/\t/g, ' ');
+}
+
+function runSize(run, style) {
+  const base = run.code && !style.mono ? style.fontPt * 0.88 : style.fontPt;
+  return base * (run.script ? 0.75 : 1) * (run.small ? 0.85 : 1);
+}
+
+function runRise(run, style) {
+  if (run.script === 'sup') return -0.38 * style.fontPt;
+  if (run.script === 'sub') return 0.18 * style.fontPt;
+  return 0;
+}
+
+const INLINE_IMAGE_FLOOR = 96;
+
+function fittedImage(run, maxWidth) {
+  const scale = Math.min(1, maxWidth / run.imageWidth);
+  return {
+    width: run.imageWidth * scale,
+    height: run.imageHeight * scale,
+    ascent: (run.imageAscent ?? run.imageHeight) * scale,
+  };
 }
 
 export function measureRuns(doc, runs, style) {
@@ -61,7 +87,15 @@ export function measureRuns(doc, runs, style) {
     segment = 0;
   };
   for (const run of runs || []) {
-    const text = run.break ? '\n' : run.text || '';
+    if (run.image) {
+      commitSegment();
+      line += run.imageWidth;
+      segment = Math.min(run.imageWidth, INLINE_IMAGE_FLOOR);
+      commitSegment();
+      prev = '';
+      continue;
+    }
+    const text = runText(run);
     for (const ch of text) {
       if (ch === '\n') {
         commitLine();
@@ -69,8 +103,7 @@ export function measureRuns(doc, runs, style) {
         prev = '';
         continue;
       }
-      const fontSizePt = run.code && !style.mono ? style.fontPt * 0.88 : style.fontPt;
-      const width = stringWidth(doc, ch, fontFor(ch, run, style), fontSizePt);
+      const width = stringWidth(doc, ch, fontFor(ch, run, style), runSize(run, style));
       if (prev && canBreak(prev, ch)) commitSegment();
       segment += width;
       line += width;
@@ -82,31 +115,28 @@ export function measureRuns(doc, runs, style) {
   return { line: maxLine, unbreakable: maxSegment };
 }
 
-function charsToLine(chars, height) {
-  const line = { runs: [], width: 0, height };
+const MERGED = ['font', 'color', 'code', 'fontSizePt', 'italic', 'strike', 'underline', 'highlight', 'href', 'rise'];
+
+function charsToLine(chars, height, basePt) {
+  const textAscent = basePt * notoAscent * PX_PER_PT;
+  const line = { runs: [], width: 0, height, baseline: textAscent };
+  let below = height - textAscent;
   for (const item of chars) {
     const last = line.runs[line.runs.length - 1];
-    if (
-      last
-      && last.font === item.font
-      && last.color === item.color
-      && last.code === item.code
-      && last.fontSizePt === item.fontSizePt
-    ) {
+    if (item.image) {
+      line.runs.push({ ...item, text: '' });
+      line.baseline = Math.max(line.baseline, item.ascent + 2);
+      below = Math.max(below, item.height - item.ascent + 2);
+    } else if (last && !last.image && !item.anchor && MERGED.every((key) => last[key] === item[key])) {
       last.text += item.ch;
       last.width += item.width;
     } else {
-      line.runs.push({
-        text: item.ch,
-        width: item.width,
-        font: item.font,
-        color: item.color,
-        code: item.code,
-        fontSizePt: item.fontSizePt,
-      });
+      const { ch, ...rest } = item;
+      line.runs.push({ ...rest, text: ch });
     }
     line.width += item.width;
   }
+  line.height = Math.max(height, line.baseline + below);
   return line;
 }
 
@@ -114,13 +144,27 @@ export function wrapRuns(doc, runs, maxWidth, style) {
   const height = lineHeightPx(style.fontPt, style.lineHeight);
   const chars = [];
   for (const run of runs || []) {
-    const text = run.break ? '\n' : run.text || '';
+    if (run.break) {
+      chars.push({ newline: true });
+      continue;
+    }
+    if (run.image) {
+      chars.push({
+        ch: '\ufffc',
+        image: run.image,
+        href: run.href,
+        ...fittedImage(run, maxWidth),
+      });
+      continue;
+    }
+    const text = runText(run);
+    let first = true;
     for (const ch of text) {
       if (ch === '\n') {
         chars.push({ newline: true });
         continue;
       }
-      const fontSizePt = run.code && !style.mono ? style.fontPt * 0.88 : style.fontPt;
+      const fontSizePt = runSize(run, style);
       const font = fontFor(ch, run, style);
       chars.push({
         ch,
@@ -129,7 +173,15 @@ export function wrapRuns(doc, runs, maxWidth, style) {
         fontSizePt,
         color: run.color || style.color || BODY.color,
         code: Boolean(run.code) && !style.mono,
+        italic: Boolean(run.italic),
+        strike: Boolean(run.strike),
+        underline: Boolean(run.underline),
+        highlight: run.highlight,
+        href: run.href,
+        rise: runRise(run, style),
+        anchor: first ? run.anchor : undefined,
       });
+      first = false;
     }
   }
 
@@ -138,13 +190,13 @@ export function wrapRuns(doc, runs, maxWidth, style) {
   let width = 0;
   const commit = () => {
     if (style.mono) {
-      lines.push(charsToLine(current, height));
+      lines.push(charsToLine(current, height, style.fontPt));
     } else if (current.some((item) => item.ch !== ' ')) {
       while (current[0]?.ch === ' ') current.shift();
       while (current[current.length - 1]?.ch === ' ') current.pop();
-      lines.push(charsToLine(current, height));
+      lines.push(charsToLine(current, height, style.fontPt));
     } else if (lines.length === 0) {
-      lines.push(charsToLine([], height));
+      lines.push(charsToLine([], height, style.fontPt));
     }
     current = [];
     width = 0;

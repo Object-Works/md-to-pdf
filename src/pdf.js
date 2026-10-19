@@ -1,10 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
-import { buildBlocks } from './blocks.js';
+import { buildBlocks, glyphText } from './blocks.js';
 import { composePdf } from './compose.js';
 import { closeDiagramRenderer } from './diagrams.js';
-import { registerPdfFonts } from './fonts.js';
+import { prepareGlyphs, registerPdfFonts } from './fonts.js';
 import { resolveSettings, splitFrontMatter } from './options.js';
 
 export async function resolveInput(input) {
@@ -77,6 +77,7 @@ export async function mdToPdf(input, options = {}) {
     autoFirstPage: true,
   });
   const done = pdfBuffer(doc);
+  await prepareGlyphs(glyphText(source.body));
   await registerPdfFonts(doc);
 
   let built;
