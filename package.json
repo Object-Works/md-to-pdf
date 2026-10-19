@@ -1,0 +1,48 @@
+{
+  "name": "@object-works/md-to-pdf",
+  "version": "1.0.1",
+  "description": "Markdown を PDF に変換する CLI。Mermaid 図と、見出し・図がページ境界で切れない組版に対応します。",
+  "type": "module",
+  "bin": {
+    "md-to-pdf": "./src/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Object-Works/md-to-pdf.git"
+  },
+  "homepage": "https://github.com/Object-Works/md-to-pdf#readme",
+  "bugs": {
+    "url": "https://github.com/Object-Works/md-to-pdf/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@fontsource/noto-sans-jp": "^5.2.8",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0",
+    "mermaid": "12.0.0",
+    "pdfkit": "^0.20.2",
+    "puppeteer": "^25.14.0",
+    "wawoff2": "^2.0.1"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^5.4.149"
+  }
+}
