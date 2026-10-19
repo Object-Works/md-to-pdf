@@ -1,2 +1,2 @@
-export { mdToPdf } from './pdf.js';
-export { renderMarkdown } from './markdown.js';
+export { mdToPdf } from './lib/md-to-pdf.js';
+export { renderMarkdown } from './lib/render-html.js';

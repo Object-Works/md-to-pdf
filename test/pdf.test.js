@@ -86,7 +86,7 @@ flowchart LR
 });
 
 test('小題と図をページの途中で切らない', { timeout: 120000 }, async () => {
-  const { contentBoxPx } = await import('../src/options.js');
+  const { contentBoxPx } = await import('../src/lib/config.js');
   const box = contentBoxPx({ format: 'A4', margin: '16mm 16mm 18mm 16mm' });
   const spacer = Math.floor(box.height) - 150;
 

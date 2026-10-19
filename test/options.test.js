@@ -7,7 +7,7 @@ import {
   parsePageBreak,
   resolveSettings,
   splitFrontMatter,
-} from '../src/options.js';
+} from '../src/lib/config.js';
 
 test('改ページする見出しは # の数でも数字でも書ける', () => {
   assert.deepEqual(parsePageBreak('#'), [1]);

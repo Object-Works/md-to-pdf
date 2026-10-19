@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { extractTitle, renderMarkdown } from '../src/markdown.js';
+import { extractTitle, renderMarkdown } from '../src/lib/render-html.js';
 
 const sample = `# 題名
 

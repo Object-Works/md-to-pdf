@@ -26,8 +26,8 @@ function pageHtml() {
 <link rel="stylesheet" href="${href(path.join(katexDir, 'katex.min.css'))}">
 <script src="${href(path.join(katexDir, 'katex.min.js'))}"></script>
 <style>
-@font-face { font-family: 'MdSymbols'; font-weight: 400; src: url('${href(path.join(here, 'fonts', 'MdSymbols-Regular.ttf'))}'); }
-@font-face { font-family: 'MdSymbols'; font-weight: 700; src: url('${href(path.join(here, 'fonts', 'MdSymbols-Bold.ttf'))}'); }
+@font-face { font-family: 'MdSymbols'; font-weight: 400; src: url('${href(path.join(here, '..', 'assets', 'fonts', 'MdSymbols-Regular.ttf'))}'); }
+@font-face { font-family: 'MdSymbols'; font-weight: 700; src: url('${href(path.join(here, '..', 'assets', 'fonts', 'MdSymbols-Bold.ttf'))}'); }
 html, body { margin: 0; padding: 0; background: #fff; font-family: ${FONT_STACK}; }
 #stage { display: inline-block; padding: 0; }
 #stage svg { display: block; }

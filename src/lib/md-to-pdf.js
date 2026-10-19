@@ -1,11 +1,12 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
-import { buildBlocks, glyphText } from './blocks.js';
+import { buildBlocks } from './blocks.js';
 import { composePdf } from './compose.js';
+import { resolveSettings, splitFrontMatter } from './config.js';
 import { closeDiagramRenderer } from './diagrams.js';
 import { prepareGlyphs, registerPdfFonts } from './fonts.js';
-import { resolveSettings, splitFrontMatter } from './options.js';
+import { glyphText } from './markdown.js';
 
 export async function resolveInput(input) {
   if (typeof input === 'string') {

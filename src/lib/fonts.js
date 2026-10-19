@@ -51,7 +51,7 @@ export function notoFont(weight) {
 }
 
 function bundledFont(file) {
-  return readFileSync(path.join(here, 'fonts', file));
+  return readFileSync(path.join(here, '..', 'assets', 'fonts', file));
 }
 
 function probeFont(buffer) {

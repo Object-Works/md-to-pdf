@@ -13,6 +13,15 @@ export const emPx = BODY.fontPt * PX_PER_PT;
 const NO_BREAK_AFTER = new Set('「『（【〈《［｛(‘“');
 const NO_BREAK_BEFORE = new Set('」』）】〉》］｝)、。，．！？!?・:;：；,.…');
 
+export function blockBox(marginTop, marginBottom, contentHeight) {
+  return {
+    marginTop,
+    marginBottom,
+    contentHeight,
+    height: marginTop + contentHeight + marginBottom,
+  };
+}
+
 export function pxToPt(px) {
   return (px * 72) / 96;
 }

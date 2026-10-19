@@ -1,5 +1,5 @@
 import { fontNameFor } from './fonts.js';
-import { lengthToPx } from './options.js';
+import { lengthToPx } from './config.js';
 import { pxToPt, stringWidth } from './text.js';
 
 function bindHeadings(blocks, pageHeight, breakLevels = [1]) {

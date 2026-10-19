@@ -1,6 +1,6 @@
 {
   "name": "@object-works/md-to-pdf",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Markdown を PDF に変換する CLI。Mermaid 図と、見出し・図がページ境界で切れない組版に対応します。",
   "type": "module",
   "bin": {
@@ -14,7 +14,7 @@
   },
   "files": [
     "src",
-    "README.md"
+    "docs"
   ],
   "repository": {
     "type": "git",
